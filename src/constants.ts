@@ -49,7 +49,7 @@ export const DEVICE_INFO = {
       "RRDA"
     ],
     "manufacturer":"Dimac IS&H Solutions",
-    "model":"RRDA-001",
+    "model":"RRDA-001 (by ION)",
     "name":"Pond"
   },
   "retain" : true
