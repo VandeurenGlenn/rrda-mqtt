@@ -1,4 +1,5 @@
 import {open, writeFile} from 'fs/promises'
+import { mac } from 'address'
 
 let config: {unique_id: string}
 
@@ -12,6 +13,13 @@ try {
   }
   await writeFile('./config.json', JSON.stringify(config))
 }
+
+const getMAC = () => new Promise((resolve, reject) => {
+  mac((err, addr) => {
+    if (err) reject(err)
+    resolve(addr)
+  })
+})
 
 export const CONFIG = config
 
@@ -42,7 +50,7 @@ export const DEVICE_INFO = {
   "config_topic": CONFIG_TOPIC,
   "payload_on": ON,
   "payload_off": OFF,
-  "unique_id": CONFIG.unique_id,
+  "unique_id": await getMAC(),
   "brightness_scale": 100,
   "device":{
     "identifiers":[
