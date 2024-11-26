@@ -6,7 +6,5 @@ export default {
     dir: './exports',
     format: 'es'
   },
-  plugins: [
-    typescript()
-  ]
+  plugins: [typescript()]
 }
