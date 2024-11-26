@@ -4,6 +4,7 @@
   "description": "",
   "type": "module",
   "scripts": {
+    "start": "node --env-file=.env ./exports/index.js",
     "build": "rollup -c",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -12,12 +13,11 @@
   "license": "MIT",
   "devDependencies": {
     "@rollup/plugin-typescript": "^12.1.1",
-    "address": "^2.0.3",
     "rollup": "^4.24.0",
     "tslib": "^2.8.0"
   },
   "dependencies": {
     "mqtt": "^5.10.1",
-    "onoff": "^6.0.3"
+    "node-libgpiod": "^0.4.6"
   }
 }
