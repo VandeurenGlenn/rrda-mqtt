@@ -17,22 +17,16 @@ const state = await readState()
 
 const device = new RRDADevice()
 
-const client = mqtt.connect('mqtt://test.mosquitto.org', {
+const client = mqtt.connect(env.MQTTBROKER ?? 'mqtt://test.mosquitto.org', {
   // clientId: DEVICE_INFO.unique_id,
   username: env.USERNAME,
   password: env.PASSWORD
 })
 
 client.on('connect', () => {
-  console.log('Connected')
-
   client.subscribe('homeassistant/status', (err) => {
-    console.log('Connected/status')
     client.publish(CONFIG_TOPIC, JSON.stringify(DEVICE_INFO))
   })
-  client.publish(CONFIG_TOPIC, JSON.stringify(DEVICE_INFO))
-  client.publish(STATE_TOPIC, ON)
-  client.publish(BRIGHTNESS_STATE_TOPIC, '100')
   client.subscribe(COMMAND_TOPIC)
   client.subscribe(BRIGHTNESS_COMMAND_TOPIC)
 })
