@@ -18,7 +18,7 @@ const state = await readState()
 const device = new RRDADevice()
 
 const client = mqtt.connect(env.MQTTBROKER ?? 'mqtt://test.mosquitto.org', {
-  // clientId: DEVICE_INFO.unique_id,
+  clientId: DEVICE_INFO.unique_id,
   username: env.USERNAME,
   password: env.PASSWORD
 })
