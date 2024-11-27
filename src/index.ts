@@ -8,14 +8,9 @@ import {
   COMMAND_TOPIC,
   CONFIG_TOPIC,
   DEVICE_INFO,
-  DEVICE_TRACKER_AVAILABILITY_TOPIC,
-  DEVICE_TRACKER_CONFIG_TOPIC,
-  DEVICE_TRACKER_STATE_TOPIC,
-  IP,
   OFF,
   ON,
-  STATE_TOPIC,
-  TRACKER_INFO
+  STATE_TOPIC
 } from './constants.js'
 import { readState, writeState } from './helpers.js'
 
@@ -24,17 +19,15 @@ const state = await readState()
 const device = new RRDADevice()
 
 const client = mqtt.connect(env.MQTTBROKER ?? 'mqtt://test.mosquitto.org', {
+  clientId: DEVICE_INFO.unique_id,
   username: env.USERNAME,
   password: env.PASSWORD
 })
 
 client.on('connect', () => {
   client.subscribe('homeassistant/status', (err) => {
-    client.publish(DEVICE_TRACKER_CONFIG_TOPIC, JSON.stringify(TRACKER_INFO))
-    client.publish(DEVICE_TRACKER_AVAILABILITY_TOPIC, 'online')
     client.publish(CONFIG_TOPIC, JSON.stringify(DEVICE_INFO))
     client.publish(AVAILABILITY_TOPIC, 'online')
-    client.publish(DEVICE_TRACKER_STATE_TOPIC, 'home')
     client.publish(BRIGHTNESS_STATE_TOPIC, state.brightness.toString())
     if (state.on) {
       client.publish(STATE_TOPIC, ON)
@@ -52,9 +45,6 @@ client.on('message', (topic, message) => {
 
   if (topic === 'homeassistant/status' && message.toString() === 'online') {
     client.publish(CONFIG_TOPIC, JSON.stringify(DEVICE_INFO))
-    client.publish(DEVICE_TRACKER_CONFIG_TOPIC, JSON.stringify(TRACKER_INFO))
-    client.publish(DEVICE_TRACKER_AVAILABILITY_TOPIC, 'online')
-    client.publish(DEVICE_TRACKER_STATE_TOPIC, 'home')
     client.publish(AVAILABILITY_TOPIC, 'online')
     client.publish(BRIGHTNESS_STATE_TOPIC, state.brightness.toString())
     if (state.on) {
@@ -84,7 +74,6 @@ client.on('message', (topic, message) => {
 for (const signal of ['SIGINT', 'SIGTERM', 'SIGQUIT']) {
   process.on(signal, () => {
     client.publish(AVAILABILITY_TOPIC, 'offline')
-    client.publish(DEVICE_TRACKER_AVAILABILITY_TOPIC, 'offline')
     setTimeout(() => {
       client.end()
       process.exit()

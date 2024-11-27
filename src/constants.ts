@@ -11,8 +11,6 @@ export const PERCENTAGES = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 7
 
 export const STATE_TOPIC = 'homeassistant/pond/light/status'
 
-export const DEVICE_TRACKER_STATE_TOPIC = 'homeassistant/pond/device_tracker/status'
-
 export const COMMAND_TOPIC = 'homeassistant/pond/light/set'
 
 export const BRIGHTNESS_STATE_TOPIC = 'homeassistant/pond/brightness/status'
@@ -21,15 +19,11 @@ export const BRIGHTNESS_COMMAND_TOPIC = 'homeassistant/pond/brightness/set'
 
 export const CONFIG_TOPIC = 'homeassistant/light/pond/config'
 
-export const DEVICE_TRACKER_CONFIG_TOPIC = 'homeassistant/device_tracker/pond/config'
-
 export const ON = 'ON'
 
 export const OFF = 'OFF'
 
 export const AVAILABILITY_TOPIC = 'homeassistant/pond/light/availability'
-
-export const DEVICE_TRACKER_AVAILABILITY_TOPIC = 'homeassistant/pond/device_tracker/availability'
 
 export const DEVICE_INFO = {
   name: 'rrda/pond',
@@ -46,26 +40,14 @@ export const DEVICE_INFO = {
   unique_id: MAC,
   brightness_scale: 100,
   device: {
-    connections: [
-      ['mac', MAC],
-      ['ip', IP]
-    ],
+    connections: [['mac', MAC]],
     identifiers: ['RRDA'],
     manufacturer: 'Dimac IS&H Solutions',
     model: 'RRDA-001 (by ION)',
-    name: 'Pond'
+    name: 'Pond',
+    hw_version: '1.0.0',
+    sw_version: '1.0.0',
+    via_device: MAC
   },
   retain: true
-}
-
-export const TRACKER_INFO = {
-  name: 'rrda/pond',
-  device_class: 'device_tracker',
-  payload_home: IP,
-  payload_not_home: 'offline',
-  state_topic: DEVICE_TRACKER_STATE_TOPIC,
-  unique_id: MAC + '_device_tracker',
-  device: {
-    via_device: MAC
-  }
 }
