@@ -221,7 +221,6 @@ client.on('connect', () => {
     client.subscribe(BRIGHTNESS_COMMAND_TOPIC);
 });
 client.on('message', (topic, message) => {
-    console.log('message', topic, message.toString());
     const payload = message.toString();
     if (topic === 'homeassistant/status' && message.toString() === 'online') {
         client.publish(CONFIG_TOPIC, JSON.stringify(DEVICE_INFO));

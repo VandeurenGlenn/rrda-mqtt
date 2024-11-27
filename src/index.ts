@@ -40,7 +40,6 @@ client.on('connect', () => {
 })
 
 client.on('message', (topic, message) => {
-  console.log('message', topic, message.toString())
   const payload = message.toString()
 
   if (topic === 'homeassistant/status' && message.toString() === 'online') {
