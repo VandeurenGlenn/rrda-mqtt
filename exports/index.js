@@ -200,6 +200,13 @@ const client = mqtt.connect(env.MQTTBROKER ?? 'mqtt://test.mosquitto.org', {
 client.on('connect', () => {
     client.subscribe('homeassistant/status', (err) => {
         client.publish(CONFIG_TOPIC, JSON.stringify(DEVICE_INFO));
+        if (state.on) {
+            client.publish(STATE_TOPIC, ON);
+        }
+        else {
+            client.publish(STATE_TOPIC, OFF);
+        }
+        client.publish(BRIGHTNESS_STATE_TOPIC, state.brightness.toString());
     });
     client.subscribe(COMMAND_TOPIC);
     client.subscribe(BRIGHTNESS_COMMAND_TOPIC);
@@ -209,8 +216,13 @@ client.on('message', (topic, message) => {
     const payload = message.toString();
     if (topic === 'homeassistant/status' && message.toString() === 'online') {
         client.publish(CONFIG_TOPIC, JSON.stringify(DEVICE_INFO));
-        client.publish(STATE_TOPIC, ON);
-        client.publish(BRIGHTNESS_STATE_TOPIC, '100');
+        if (state.on) {
+            client.publish(STATE_TOPIC, ON);
+        }
+        else {
+            client.publish(STATE_TOPIC, OFF);
+        }
+        client.publish(BRIGHTNESS_STATE_TOPIC, state.brightness.toString());
     }
     else if (topic === COMMAND_TOPIC) {
         if (payload === ON) {
