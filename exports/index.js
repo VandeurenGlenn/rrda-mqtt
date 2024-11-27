@@ -14,11 +14,13 @@ const BRIGHTNESS_COMMAND_TOPIC = 'homeassistant/pond/brightness/set';
 const CONFIG_TOPIC = 'homeassistant/light/pond/config';
 const ON = 'ON';
 const OFF = 'OFF';
+const AVAILABILITY_TOPIC = 'homeassistant/pond/light/availability';
 const DEVICE_INFO = {
     name: 'rrda/pond',
     device_class: 'light',
     brightness: true,
     state_topic: STATE_TOPIC,
+    availability_topic: AVAILABILITY_TOPIC,
     command_topic: COMMAND_TOPIC,
     brightness_state_topic: BRIGHTNESS_STATE_TOPIC,
     brightness_command_topic: BRIGHTNESS_COMMAND_TOPIC,
@@ -200,13 +202,14 @@ const client = mqtt.connect(env.MQTTBROKER ?? 'mqtt://test.mosquitto.org', {
 client.on('connect', () => {
     client.subscribe('homeassistant/status', (err) => {
         client.publish(CONFIG_TOPIC, JSON.stringify(DEVICE_INFO));
+        client.publish(AVAILABILITY_TOPIC, 'online');
+        client.publish(BRIGHTNESS_STATE_TOPIC, state.brightness.toString());
         if (state.on) {
             client.publish(STATE_TOPIC, ON);
         }
         else {
             client.publish(STATE_TOPIC, OFF);
         }
-        client.publish(BRIGHTNESS_STATE_TOPIC, state.brightness.toString());
     });
     client.subscribe(COMMAND_TOPIC);
     client.subscribe(BRIGHTNESS_COMMAND_TOPIC);
@@ -216,13 +219,14 @@ client.on('message', (topic, message) => {
     const payload = message.toString();
     if (topic === 'homeassistant/status' && message.toString() === 'online') {
         client.publish(CONFIG_TOPIC, JSON.stringify(DEVICE_INFO));
+        client.publish(AVAILABILITY_TOPIC, 'online');
+        client.publish(BRIGHTNESS_STATE_TOPIC, state.brightness.toString());
         if (state.on) {
             client.publish(STATE_TOPIC, ON);
         }
         else {
             client.publish(STATE_TOPIC, OFF);
         }
-        client.publish(BRIGHTNESS_STATE_TOPIC, state.brightness.toString());
     }
     else if (topic === COMMAND_TOPIC) {
         if (payload === ON) {
@@ -245,6 +249,6 @@ client.on('message', (topic, message) => {
     }
 });
 process.on('beforeExit', () => {
-    client.publish(STATE_TOPIC, 'offline');
+    client.publish(AVAILABILITY_TOPIC, 'offline');
     client.end();
 });

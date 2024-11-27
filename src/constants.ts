@@ -19,11 +19,14 @@ export const ON = 'ON'
 
 export const OFF = 'OFF'
 
+export const AVAILABILITY_TOPIC = 'homeassistant/pond/light/availability'
+
 export const DEVICE_INFO = {
   name: 'rrda/pond',
   device_class: 'light',
   brightness: true,
   state_topic: STATE_TOPIC,
+  availability_topic: AVAILABILITY_TOPIC,
   command_topic: COMMAND_TOPIC,
   brightness_state_topic: BRIGHTNESS_STATE_TOPIC,
   brightness_command_topic: BRIGHTNESS_COMMAND_TOPIC,

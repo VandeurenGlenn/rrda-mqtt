@@ -2,6 +2,7 @@ import mqtt from 'mqtt'
 import { env } from 'process'
 import { RRDADevice } from './rrda.js'
 import {
+  AVAILABILITY_TOPIC,
   BRIGHTNESS_COMMAND_TOPIC,
   BRIGHTNESS_STATE_TOPIC,
   COMMAND_TOPIC,
@@ -26,12 +27,13 @@ const client = mqtt.connect(env.MQTTBROKER ?? 'mqtt://test.mosquitto.org', {
 client.on('connect', () => {
   client.subscribe('homeassistant/status', (err) => {
     client.publish(CONFIG_TOPIC, JSON.stringify(DEVICE_INFO))
+    client.publish(AVAILABILITY_TOPIC, 'online')
+    client.publish(BRIGHTNESS_STATE_TOPIC, state.brightness.toString())
     if (state.on) {
       client.publish(STATE_TOPIC, ON)
     } else {
       client.publish(STATE_TOPIC, OFF)
     }
-    client.publish(BRIGHTNESS_STATE_TOPIC, state.brightness.toString())
   })
   client.subscribe(COMMAND_TOPIC)
   client.subscribe(BRIGHTNESS_COMMAND_TOPIC)
@@ -43,12 +45,13 @@ client.on('message', (topic, message) => {
 
   if (topic === 'homeassistant/status' && message.toString() === 'online') {
     client.publish(CONFIG_TOPIC, JSON.stringify(DEVICE_INFO))
+    client.publish(AVAILABILITY_TOPIC, 'online')
+    client.publish(BRIGHTNESS_STATE_TOPIC, state.brightness.toString())
     if (state.on) {
       client.publish(STATE_TOPIC, ON)
     } else {
       client.publish(STATE_TOPIC, OFF)
     }
-    client.publish(BRIGHTNESS_STATE_TOPIC, state.brightness.toString())
   } else if (topic === COMMAND_TOPIC) {
     if (payload === ON) {
       state.on = true
@@ -69,6 +72,6 @@ client.on('message', (topic, message) => {
 })
 
 process.on('beforeExit', () => {
-  client.publish(STATE_TOPIC, 'offline')
+  client.publish(AVAILABILITY_TOPIC, 'offline')
   client.end()
 })
