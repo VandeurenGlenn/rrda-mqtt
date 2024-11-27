@@ -6,17 +6,20 @@ import { open, writeFile } from 'fs/promises';
 
 // rpi zero has only wifi interface so we can safely assume that the mac address is the wifi mac address
 const networkInterface = networkInterfaces()['wlan0']?.[0];
-const IP = networkInterface?.address;
+const IP = networkInterface?.address || '127.0.0.1';
 const MAC = networkInterface?.mac;
 const PERCENTAGES = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100];
 const STATE_TOPIC = 'homeassistant/pond/light/status';
+const DEVICE_TRACKER_STATE_TOPIC = 'homeassistant/pond/device_tracker/status';
 const COMMAND_TOPIC = 'homeassistant/pond/light/set';
 const BRIGHTNESS_STATE_TOPIC = 'homeassistant/pond/brightness/status';
 const BRIGHTNESS_COMMAND_TOPIC = 'homeassistant/pond/brightness/set';
 const CONFIG_TOPIC = 'homeassistant/light/pond/config';
+const DEVICE_TRACKER_CONFIG_TOPIC = 'homeassistant/device_tracker/pond/config';
 const ON = 'ON';
 const OFF = 'OFF';
 const AVAILABILITY_TOPIC = 'homeassistant/pond/light/availability';
+const DEVICE_TRACKER_AVAILABILITY_TOPIC = 'homeassistant/pond/device_tracker/availability';
 const DEVICE_INFO = {
     name: 'rrda/pond',
     device_class: 'light',
@@ -42,6 +45,17 @@ const DEVICE_INFO = {
         name: 'Pond'
     },
     retain: true
+};
+const TRACKER_INFO = {
+    name: 'rrda/pond',
+    device_class: 'device_tracker',
+    payload_home: IP,
+    payload_not_home: 'offline',
+    state_topic: DEVICE_TRACKER_STATE_TOPIC,
+    unique_id: MAC + '_device_tracker',
+    device: {
+        via_device: MAC
+    }
 };
 
 const { Chip, Line } = gpiod;
@@ -201,14 +215,16 @@ const writeState = async (state) => {
 const state = await readState();
 const device = new RRDADevice();
 const client = mqtt.connect(env.MQTTBROKER ?? 'mqtt://test.mosquitto.org', {
-    clientId: DEVICE_INFO.unique_id,
     username: env.USERNAME,
     password: env.PASSWORD
 });
 client.on('connect', () => {
     client.subscribe('homeassistant/status', (err) => {
+        client.publish(DEVICE_TRACKER_CONFIG_TOPIC, JSON.stringify(TRACKER_INFO));
+        client.publish(DEVICE_TRACKER_AVAILABILITY_TOPIC, 'online');
         client.publish(CONFIG_TOPIC, JSON.stringify(DEVICE_INFO));
         client.publish(AVAILABILITY_TOPIC, 'online');
+        client.publish(DEVICE_TRACKER_STATE_TOPIC, 'home');
         client.publish(BRIGHTNESS_STATE_TOPIC, state.brightness.toString());
         if (state.on) {
             client.publish(STATE_TOPIC, ON);
@@ -225,6 +241,9 @@ client.on('message', (topic, message) => {
     const payload = message.toString();
     if (topic === 'homeassistant/status' && message.toString() === 'online') {
         client.publish(CONFIG_TOPIC, JSON.stringify(DEVICE_INFO));
+        client.publish(DEVICE_TRACKER_CONFIG_TOPIC, JSON.stringify(TRACKER_INFO));
+        client.publish(DEVICE_TRACKER_AVAILABILITY_TOPIC, 'online');
+        client.publish(DEVICE_TRACKER_STATE_TOPIC, 'home');
         client.publish(AVAILABILITY_TOPIC, 'online');
         client.publish(BRIGHTNESS_STATE_TOPIC, state.brightness.toString());
         if (state.on) {
@@ -257,6 +276,7 @@ client.on('message', (topic, message) => {
 for (const signal of ['SIGINT', 'SIGTERM', 'SIGQUIT']) {
     process.on(signal, () => {
         client.publish(AVAILABILITY_TOPIC, 'offline');
+        client.publish(DEVICE_TRACKER_AVAILABILITY_TOPIC, 'offline');
         setTimeout(() => {
             client.end();
             process.exit();

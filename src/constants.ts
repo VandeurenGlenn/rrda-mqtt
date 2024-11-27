@@ -3,13 +3,15 @@ import { networkInterfaces } from 'os'
 // rpi zero has only wifi interface so we can safely assume that the mac address is the wifi mac address
 const networkInterface = networkInterfaces()['wlan0']?.[0]
 
-export const IP = networkInterface?.address
+export const IP = networkInterface?.address || '127.0.0.1'
 
 export const MAC = networkInterface?.mac
 
 export const PERCENTAGES = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100]
 
 export const STATE_TOPIC = 'homeassistant/pond/light/status'
+
+export const DEVICE_TRACKER_STATE_TOPIC = 'homeassistant/pond/device_tracker/status'
 
 export const COMMAND_TOPIC = 'homeassistant/pond/light/set'
 
@@ -19,11 +21,15 @@ export const BRIGHTNESS_COMMAND_TOPIC = 'homeassistant/pond/brightness/set'
 
 export const CONFIG_TOPIC = 'homeassistant/light/pond/config'
 
+export const DEVICE_TRACKER_CONFIG_TOPIC = 'homeassistant/device_tracker/pond/config'
+
 export const ON = 'ON'
 
 export const OFF = 'OFF'
 
 export const AVAILABILITY_TOPIC = 'homeassistant/pond/light/availability'
+
+export const DEVICE_TRACKER_AVAILABILITY_TOPIC = 'homeassistant/pond/device_tracker/availability'
 
 export const DEVICE_INFO = {
   name: 'rrda/pond',
@@ -50,4 +56,16 @@ export const DEVICE_INFO = {
     name: 'Pond'
   },
   retain: true
+}
+
+export const TRACKER_INFO = {
+  name: 'rrda/pond',
+  device_class: 'device_tracker',
+  payload_home: IP,
+  payload_not_home: 'offline',
+  state_topic: DEVICE_TRACKER_STATE_TOPIC,
+  unique_id: MAC + '_device_tracker',
+  device: {
+    via_device: MAC
+  }
 }
