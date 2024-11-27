@@ -1,7 +1,11 @@
 import { networkInterfaces } from 'os'
 
 // rpi zero has only wifi interface so we can safely assume that the mac address is the wifi mac address
-export const MAC = networkInterfaces()['wlan0']?.[0]?.mac
+const networkInterface = networkInterfaces()['wlan0']?.[0]
+
+export const IP = networkInterface?.address
+
+export const MAC = networkInterface?.mac
 
 export const PERCENTAGES = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100]
 
@@ -36,7 +40,11 @@ export const DEVICE_INFO = {
   unique_id: MAC,
   brightness_scale: 100,
   device: {
-    identifiers: [MAC, 'RRDA'],
+    connections: [
+      ['mac', MAC],
+      ['ip', IP]
+    ],
+    identifiers: ['RRDA'],
     manufacturer: 'Dimac IS&H Solutions',
     model: 'RRDA-001 (by ION)',
     name: 'Pond'

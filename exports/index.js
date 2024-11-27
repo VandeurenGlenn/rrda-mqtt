@@ -5,7 +5,9 @@ import { networkInterfaces } from 'os';
 import { open, writeFile } from 'fs/promises';
 
 // rpi zero has only wifi interface so we can safely assume that the mac address is the wifi mac address
-const MAC = networkInterfaces()['wlan0']?.[0]?.mac;
+const networkInterface = networkInterfaces()['wlan0']?.[0];
+const IP = networkInterface?.address;
+const MAC = networkInterface?.mac;
 const PERCENTAGES = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100];
 const STATE_TOPIC = 'homeassistant/pond/light/status';
 const COMMAND_TOPIC = 'homeassistant/pond/light/set';
@@ -30,7 +32,11 @@ const DEVICE_INFO = {
     unique_id: MAC,
     brightness_scale: 100,
     device: {
-        identifiers: [MAC, 'RRDA'],
+        connections: [
+            ['mac', MAC],
+            ['ip', IP]
+        ],
+        identifiers: ['RRDA'],
         manufacturer: 'Dimac IS&H Solutions',
         model: 'RRDA-001 (by ION)',
         name: 'Pond'
@@ -251,7 +257,9 @@ client.on('message', (topic, message) => {
 for (const signal of ['SIGINT', 'SIGTERM', 'SIGQUIT']) {
     process.on(signal, () => {
         client.publish(AVAILABILITY_TOPIC, 'offline');
-        client.end();
-        process.exit();
+        setTimeout(() => {
+            client.end();
+            process.exit();
+        }, 200);
     });
 }
