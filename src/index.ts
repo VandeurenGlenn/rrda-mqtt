@@ -14,6 +14,10 @@ import {
 } from './constants.js'
 import { readState, writeState } from './helpers.js'
 
+import dotenv from 'dotenv'
+
+dotenv.config()
+
 const state = await readState()
 
 const device = new RRDADevice()

@@ -3,6 +3,7 @@ import { env } from 'process';
 import gpiod from 'node-libgpiod';
 import { networkInterfaces } from 'os';
 import { open, writeFile } from 'fs/promises';
+import dotenv from 'dotenv';
 
 // rpi zero has only wifi interface so we can safely assume that the mac address is the wifi mac address
 const networkInterface = networkInterfaces()['wlan0']?.[0];
@@ -198,6 +199,7 @@ const writeState = async (state) => {
     await writeFile('./state.json', JSON.stringify(state));
 };
 
+dotenv.config();
 const state = await readState();
 const device = new RRDADevice();
 const client = mqtt.connect(env.MQTTBROKER ?? 'mqtt://test.mosquitto.org', {
