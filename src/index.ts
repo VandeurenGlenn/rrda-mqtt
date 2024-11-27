@@ -74,7 +74,9 @@ client.on('message', (topic, message) => {
 for (const signal of ['SIGINT', 'SIGTERM', 'SIGQUIT']) {
   process.on(signal, () => {
     client.publish(AVAILABILITY_TOPIC, 'offline')
-    client.end()
-    process.exit()
+    setTimeout(() => {
+      client.end()
+      process.exit()
+    }, 200)
   })
 }
