@@ -26,10 +26,9 @@ const DEVICE_INFO = {
     payload_on: ON,
     payload_off: OFF,
     unique_id: MAC,
-    identifiers: [MAC, 'RRDA', 'RPI Zero W'],
     brightness_scale: 100,
     device: {
-        identifiers: ['RRDA'],
+        identifiers: [MAC, 'RRDA'],
         manufacturer: 'Dimac IS&H Solutions',
         model: 'RRDA-001 (by ION)',
         name: 'Pond'
@@ -244,4 +243,8 @@ client.on('message', (topic, message) => {
         client.publish(BRIGHTNESS_STATE_TOPIC, payload);
         writeState(state);
     }
+});
+process.on('beforeExit', () => {
+    client.publish(STATE_TOPIC, 'offline');
+    client.end();
 });

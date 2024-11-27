@@ -67,3 +67,8 @@ client.on('message', (topic, message) => {
     writeState(state)
   }
 })
+
+process.on('beforeExit', () => {
+  client.publish(STATE_TOPIC, 'offline')
+  client.end()
+})
