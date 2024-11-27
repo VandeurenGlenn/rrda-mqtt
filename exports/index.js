@@ -248,7 +248,10 @@ client.on('message', (topic, message) => {
         writeState(state);
     }
 });
-process.on('beforeExit', () => {
-    client.publish(AVAILABILITY_TOPIC, 'offline');
-    client.end();
-});
+for (const signal of ['SIGINT', 'SIGTERM', 'SIGQUIT']) {
+    process.on(signal, () => {
+        client.publish(AVAILABILITY_TOPIC, 'offline');
+        client.end();
+        process.exit();
+    });
+}
