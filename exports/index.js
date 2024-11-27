@@ -26,6 +26,7 @@ const DEVICE_INFO = {
     payload_on: ON,
     payload_off: OFF,
     unique_id: MAC,
+    identifiers: [MAC, 'RRDA', 'RPI Zero W'],
     brightness_scale: 100,
     device: {
         identifiers: ['RRDA'],

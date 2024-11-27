@@ -33,7 +33,7 @@ export const DEVICE_INFO = {
   unique_id: MAC,
   brightness_scale: 100,
   device: {
-    identifiers: ['RRDA'],
+    identifiers: [MAC, 'RRDA'],
     manufacturer: 'Dimac IS&H Solutions',
     model: 'RRDA-001 (by ION)',
     name: 'Pond'
