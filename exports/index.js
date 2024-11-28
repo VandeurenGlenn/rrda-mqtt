@@ -42,13 +42,14 @@ const DEVICE_INFO = {
 };
 const UPDATE_INFO = {
     name: 'pond update',
-    device_class: 'update',
     platform: 'update',
+    icon: 'mdi:update',
     config_topic: 'homeassistant/update/pond/config',
     state_topic: 'homeassistant/pond/update/status',
     latest_version_topic: 'homeassistant/pond/update/latest',
-    command_topic: 'homeassistant/pond/update/update',
+    command_topic: 'homeassistant/pond/update/install',
     availability_topic: 'homeassistant/pond/update/availability',
+    install_payload: 'install',
     unique_id: `${MAC}-update`,
     device: DEVICE_INFO.device
 };
@@ -191,19 +192,10 @@ class RRDADevice {
     }
 }
 
-const getSystemInfo = () => {
-    const input = execSync('cat /etc/os-release').toString().split('=');
-    const info = {};
-    for (let i = 0; i < input.length; i += 2) {
-        info[input[i]] = input[i + 1];
-    }
-    return info;
-};
 const generateVersion = () => {
     const date = new Date();
-    const system = getSystemInfo();
     const kernel = execSync('uname -r').toString().trim();
-    return `${system['ID']} ${system['VERSION']}-${kernel}@${date.getFullYear()}.${date.getMonth()}.${date.getDate()}`;
+    return `${kernel}@${date.getFullYear()}.${date.getMonth()}.${date.getDate()}.${date.getHours()}${date.getMinutes()}`;
 };
 const readState = async () => {
     let state = {
@@ -282,13 +274,13 @@ const publishConfig = () => {
 const publishState = () => {
     client.publish(DEVICE_INFO.brightness_state_topic, state.brightness.toString());
     client.publish(DEVICE_INFO.state_topic, state.on ? ON : OFF);
+    client.publish(UPDATE_INFO.state_topic, state.version);
 };
 const update = async () => {
     await upgrade();
     state.version = state.latestVersion;
     writeState(state);
     client.publish(UPDATE_INFO.state_topic, state.version);
-    client.publish(UPDATE_INFO.latest_version_topic, state.latestVersion);
 };
 client.on('connect', () => {
     client.subscribe('homeassistant/status', (err) => {
@@ -327,12 +319,9 @@ client.on('message', async (topic, message) => {
         writeState(state);
     }
     else if (topic === UPDATE_INFO.command_topic) {
-        if (payload === 'update') {
-            client.publish(UPDATE_INFO.state_topic, 'updating');
-            await update();
-            // update code here
-            client.publish(UPDATE_INFO.state_topic, state.version);
-        }
+        await update();
+        // update code here
+        client.publish(UPDATE_INFO.state_topic, state.version);
     }
 });
 for (const signal of ['SIGINT', 'SIGTERM', 'SIGQUIT']) {
@@ -349,10 +338,7 @@ const updateJob = async () => {
     if (updates) {
         state.latestVersion = generateVersion();
         client.publish(UPDATE_INFO.latest_version_topic, state.latestVersion);
-        client.publish(UPDATE_INFO.state_topic, 'updates available');
     }
-    else
-        client.publish(UPDATE_INFO.state_topic, 'no updates available');
 };
 await updateJob();
 new CronJob('0 0 * * *', updateJob);

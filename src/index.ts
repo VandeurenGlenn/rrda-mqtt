@@ -30,6 +30,7 @@ const publishConfig = () => {
 const publishState = () => {
   client.publish(DEVICE_INFO.brightness_state_topic, state.brightness.toString())
   client.publish(DEVICE_INFO.state_topic, state.on ? ON : OFF)
+  client.publish(UPDATE_INFO.state_topic, state.version)
 }
 
 const update = async () => {
@@ -38,7 +39,6 @@ const update = async () => {
   state.version = state.latestVersion
   writeState(state)
   client.publish(UPDATE_INFO.state_topic, state.version)
-  client.publish(UPDATE_INFO.latest_version_topic, state.latestVersion)
 }
 
 client.on('connect', () => {
@@ -76,12 +76,9 @@ client.on('message', async (topic, message) => {
     client.publish(DEVICE_INFO.brightness_state_topic, payload)
     writeState(state)
   } else if (topic === UPDATE_INFO.command_topic) {
-    if (payload === 'update') {
-      client.publish(UPDATE_INFO.state_topic, 'updating')
-      await update()
-      // update code here
-      client.publish(UPDATE_INFO.state_topic, state.version)
-    }
+    await update()
+    // update code here
+    client.publish(UPDATE_INFO.state_topic, state.version)
   }
 })
 
@@ -100,8 +97,7 @@ const updateJob = async () => {
   if (updates) {
     state.latestVersion = generateVersion()
     client.publish(UPDATE_INFO.latest_version_topic, state.latestVersion)
-    client.publish(UPDATE_INFO.state_topic, 'updates available')
-  } else client.publish(UPDATE_INFO.state_topic, 'no updates available')
+  }
 }
 
 await updateJob()

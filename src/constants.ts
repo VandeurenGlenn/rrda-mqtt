@@ -42,13 +42,14 @@ export const DEVICE_INFO = {
 
 export const UPDATE_INFO = {
   name: 'pond update',
-  device_class: 'update',
   platform: 'update',
+  icon: 'mdi:update',
   config_topic: 'homeassistant/update/pond/config',
   state_topic: 'homeassistant/pond/update/status',
   latest_version_topic: 'homeassistant/pond/update/latest',
-  command_topic: 'homeassistant/pond/update/update',
+  command_topic: 'homeassistant/pond/update/install',
   availability_topic: 'homeassistant/pond/update/availability',
+  install_payload: 'install',
   unique_id: `${MAC}-update`,
   device: DEVICE_INFO.device
 }

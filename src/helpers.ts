@@ -8,20 +8,10 @@ export type State = {
   latestVersion: string
 }
 
-const getSystemInfo = () => {
-  const input = execSync('cat /etc/os-release').toString().split('=')
-  const info: { [index: string]: string } = {}
-  for (let i = 0; i < input.length; i += 2) {
-    info[input[i]] = input[i + 1]
-  }
-  return info
-}
-
 export const generateVersion = () => {
   const date = new Date()
-  const system = getSystemInfo()
   const kernel = execSync('uname -r').toString().trim()
-  return `${system['ID']} ${system['VERSION']}-${kernel}@${date.getFullYear()}.${date.getMonth()}.${date.getDate()}`
+  return `${kernel}@${date.getFullYear()}.${date.getMonth()}.${date.getDate()}.${date.getHours()}${date.getMinutes()}`
 }
 
 export const readState = async () => {
