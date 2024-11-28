@@ -1,7 +1,36 @@
 import { open, writeFile } from 'fs/promises'
+import { exec, execSync } from 'child_process'
+
+export type State = {
+  on: boolean
+  brightness: number
+  version: string
+  latestVersion: string
+}
+
+const getSystemInfo = () => {
+  const input = execSync('cat /etc/os-release').toString().split('=')
+  const info: { [index: string]: string } = {}
+  for (let i = 0; i < input.length; i += 2) {
+    info[input[i]] = input[i + 1]
+  }
+  return info
+}
+
+export const generateVersion = () => {
+  const date = new Date()
+  const system = getSystemInfo()
+  const kernel = execSync('uname -r').toString().trim()
+  return `${system['ID']} ${system['VERSION']}-${kernel}@${date.getFullYear()}.${date.getMonth()}.${date.getDate()}`
+}
 
 export const readState = async () => {
-  let state: { on: boolean; brightness: number } = { on: false, brightness: 100 }
+  let state: State = {
+    on: false,
+    brightness: 100,
+    version: generateVersion(),
+    latestVersion: generateVersion()
+  }
 
   try {
     let fd = await open('./state.json')
@@ -13,6 +42,59 @@ export const readState = async () => {
   return state
 }
 
-export const writeState = async (state: { on: boolean; brightness: number }) => {
+export const writeState = async (state: State) => {
   await writeFile('./state.json', JSON.stringify(state))
+}
+
+export const upgrade = () =>
+  new Promise<void>((resolve, reject) => {
+    const child = exec('sudo apt upgrade -y')
+    child.stdout?.on('data', (data) => {
+      console.log(data)
+      if (data.includes('apt list --upgradable')) {
+        resolve()
+        // child.stdin?.write('Y\n')
+      }
+    })
+    child.stderr?.on('data', console.error)
+  })
+
+export const update = () =>
+  new Promise<void>((resolve, reject) => {
+    const child = exec('sudo apt update -y')
+    child.stdout?.on('data', async (data) => {
+      console.log(data)
+      if (data.includes('apt list --upgradable')) {
+        resolve()
+        // child.stdin?.write('Y\n')
+      } else if (data.includes('All packages are up to date')) {
+        resolve()
+      }
+    })
+    child.stderr?.on('data', console.error)
+  })
+
+export const checkForUpdates = async () => {
+  await update()
+  const updates = execSync('apt list --upgradable')
+    .toString()
+    .split('\n')
+    .filter((line) => line.includes('/'))
+
+  const list: { [index: string]: string } = {}
+
+  for (const update of updates) {
+    const [packageName, version] = update.split('/')
+    list[packageName] = version.split(' ')[0]
+  }
+
+  return list
+}
+
+export const shutdown = () => {
+  exec('sudo shutdown -h now')
+}
+
+export const reboot = () => {
+  exec('sudo reboot -n')
 }

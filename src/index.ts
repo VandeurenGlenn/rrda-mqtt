@@ -1,19 +1,11 @@
 import mqtt from 'mqtt'
 import { env } from 'process'
 import { RRDADevice } from './rrda.js'
-import {
-  AVAILABILITY_TOPIC,
-  BRIGHTNESS_COMMAND_TOPIC,
-  BRIGHTNESS_STATE_TOPIC,
-  COMMAND_TOPIC,
-  CONFIG_TOPIC,
-  DEVICE_INFO,
-  OFF,
-  ON,
-  STATE_TOPIC
-} from './constants.js'
-import { readState, writeState } from './helpers.js'
-
+import { DEVICE_INFO, OFF, ON, UPDATE_INFO } from './constants.js'
+import { checkForUpdates, readState, upgrade, writeState } from './helpers.js'
+import { generateVersion } from './helpers.js'
+import { CronJob } from 'cron'
+import { execSync } from 'child_process'
 import dotenv from 'dotenv'
 
 dotenv.config()
@@ -23,63 +15,94 @@ const state = await readState()
 const device = new RRDADevice()
 
 const client = mqtt.connect(env.MQTTBROKER ?? 'mqtt://test.mosquitto.org', {
-  clientId: DEVICE_INFO.unique_id,
   username: env.USERNAME,
   password: env.PASSWORD
 })
 
+const publishAvailability = (state: 'online' | 'offline') => {
+  for (const topic of [UPDATE_INFO.availability_topic, DEVICE_INFO.availability_topic]) client.publish(topic, state)
+}
+
+const publishConfig = () => {
+  for (const config of [UPDATE_INFO, DEVICE_INFO]) client.publish(config.config_topic, JSON.stringify(config))
+}
+
+const publishState = () => {
+  client.publish(DEVICE_INFO.brightness_state_topic, state.brightness.toString())
+  client.publish(DEVICE_INFO.state_topic, state.on ? ON : OFF)
+}
+
+const update = async () => {
+  await upgrade()
+
+  state.version = state.latestVersion
+  writeState(state)
+  client.publish(UPDATE_INFO.state_topic, state.version)
+  client.publish(UPDATE_INFO.latest_version_topic, state.latestVersion)
+}
+
 client.on('connect', () => {
   client.subscribe('homeassistant/status', (err) => {
-    client.publish(CONFIG_TOPIC, JSON.stringify(DEVICE_INFO))
-    client.publish(AVAILABILITY_TOPIC, 'online')
-    client.publish(BRIGHTNESS_STATE_TOPIC, state.brightness.toString())
-    if (state.on) {
-      client.publish(STATE_TOPIC, ON)
-    } else {
-      client.publish(STATE_TOPIC, OFF)
-    }
+    publishConfig()
+    publishAvailability('online')
+    publishState()
   })
-  client.subscribe(COMMAND_TOPIC)
-  client.subscribe(BRIGHTNESS_COMMAND_TOPIC)
+  client.subscribe(DEVICE_INFO.command_topic)
+  client.subscribe(DEVICE_INFO.brightness_command_topic)
+  client.subscribe(UPDATE_INFO.command_topic)
 })
 
-client.on('message', (topic, message) => {
+client.on('message', async (topic, message) => {
   const payload = message.toString()
 
   if (topic === 'homeassistant/status' && message.toString() === 'online') {
-    client.publish(CONFIG_TOPIC, JSON.stringify(DEVICE_INFO))
-    client.publish(AVAILABILITY_TOPIC, 'online')
-    client.publish(BRIGHTNESS_STATE_TOPIC, state.brightness.toString())
-    if (state.on) {
-      client.publish(STATE_TOPIC, ON)
-    } else {
-      client.publish(STATE_TOPIC, OFF)
-    }
-  } else if (topic === COMMAND_TOPIC) {
+    publishConfig()
+    publishAvailability('online')
+    publishState()
+  } else if (topic === DEVICE_INFO.command_topic) {
     if (payload === ON) {
       state.on = true
       device.on()
-      client.publish(STATE_TOPIC, ON)
+      client.publish(DEVICE_INFO.state_topic, ON)
     } else {
       state.on = false
       device.off()
-      client.publish(STATE_TOPIC, OFF)
+      client.publish(DEVICE_INFO.state_topic, OFF)
     }
     writeState(state)
-  } else if (topic === BRIGHTNESS_COMMAND_TOPIC) {
+  } else if (topic === DEVICE_INFO.brightness_command_topic) {
     state.brightness = parseInt(payload)
     device.dim(state.brightness)
-    client.publish(BRIGHTNESS_STATE_TOPIC, payload)
+    client.publish(DEVICE_INFO.brightness_state_topic, payload)
     writeState(state)
+  } else if (topic === UPDATE_INFO.command_topic) {
+    if (payload === 'update') {
+      client.publish(UPDATE_INFO.state_topic, 'updating')
+      await update()
+      // update code here
+      client.publish(UPDATE_INFO.state_topic, state.version)
+    }
   }
 })
 
 for (const signal of ['SIGINT', 'SIGTERM', 'SIGQUIT']) {
   process.on(signal, () => {
-    client.publish(AVAILABILITY_TOPIC, 'offline')
+    client.publish(DEVICE_INFO.availability_topic, 'offline')
     setTimeout(() => {
       client.end()
       process.exit()
     }, 200)
   })
 }
+
+const updateJob = async () => {
+  const updates = await checkForUpdates()
+  if (updates) {
+    state.latestVersion = generateVersion()
+    client.publish(UPDATE_INFO.latest_version_topic, state.latestVersion)
+    client.publish(UPDATE_INFO.state_topic, 'updates available')
+  } else client.publish(UPDATE_INFO.state_topic, 'no updates available')
+}
+
+await updateJob()
+new CronJob('0 0 * * *', updateJob)

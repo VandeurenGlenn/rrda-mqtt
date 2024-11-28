@@ -3,6 +3,8 @@ import { env } from 'process';
 import gpiod from 'node-libgpiod';
 import { networkInterfaces } from 'os';
 import { open, writeFile } from 'fs/promises';
+import { execSync, exec } from 'child_process';
+import { CronJob } from 'cron';
 import dotenv from 'dotenv';
 
 // rpi zero has only wifi interface so we can safely assume that the mac address is the wifi mac address
@@ -10,39 +12,45 @@ const networkInterface = networkInterfaces()['wlan0']?.[0];
 networkInterface?.address || '127.0.0.1';
 const MAC = networkInterface?.mac;
 const PERCENTAGES = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100];
-const STATE_TOPIC = 'homeassistant/pond/light/status';
-const COMMAND_TOPIC = 'homeassistant/pond/light/set';
-const BRIGHTNESS_STATE_TOPIC = 'homeassistant/pond/brightness/status';
-const BRIGHTNESS_COMMAND_TOPIC = 'homeassistant/pond/brightness/set';
-const CONFIG_TOPIC = 'homeassistant/light/pond/config';
 const ON = 'ON';
 const OFF = 'OFF';
-const AVAILABILITY_TOPIC = 'homeassistant/pond/light/availability';
 const DEVICE_INFO = {
-    name: 'rrda/pond',
-    device_class: 'light',
+    name: 'pond light',
+    class_device: 'light',
     brightness: true,
-    state_topic: STATE_TOPIC,
-    availability_topic: AVAILABILITY_TOPIC,
-    command_topic: COMMAND_TOPIC,
-    brightness_state_topic: BRIGHTNESS_STATE_TOPIC,
-    brightness_command_topic: BRIGHTNESS_COMMAND_TOPIC,
-    config_topic: CONFIG_TOPIC,
+    state_topic: 'homeassistant/pond/light/status',
+    availability_topic: 'homeassistant/pond/light/availability',
+    command_topic: 'homeassistant/pond/light/set',
+    brightness_state_topic: 'homeassistant/pond/brightness/status',
+    brightness_command_topic: 'homeassistant/pond/brightness/set',
+    config_topic: 'homeassistant/light/pond/config',
     payload_on: ON,
     payload_off: OFF,
-    unique_id: MAC,
+    unique_id: `${MAC}-light`,
     brightness_scale: 100,
     device: {
         connections: [['mac', MAC]],
         identifiers: ['RRDA'],
         manufacturer: 'Dimac IS&H Solutions',
         model: 'RRDA-001 (by ION)',
-        name: 'Pond',
+        name: 'Pond Pi',
         hw_version: '1.0.0',
         sw_version: '1.0.0',
         via_device: MAC
     },
     retain: true
+};
+const UPDATE_INFO = {
+    name: 'pond update',
+    device_class: 'update',
+    platform: 'update',
+    config_topic: 'homeassistant/update/pond/config',
+    state_topic: 'homeassistant/pond/update/status',
+    latest_version_topic: 'homeassistant/pond/update/latest',
+    command_topic: 'homeassistant/pond/update/update',
+    availability_topic: 'homeassistant/pond/update/availability',
+    unique_id: `${MAC}-update`,
+    device: DEVICE_INFO.device
 };
 
 const { Chip, Line } = gpiod;
@@ -183,8 +191,27 @@ class RRDADevice {
     }
 }
 
+const getSystemInfo = () => {
+    const input = execSync('cat /etc/os-release').toString().split('=');
+    const info = {};
+    for (let i = 0; i < input.length; i += 2) {
+        info[input[i]] = input[i + 1];
+    }
+    return info;
+};
+const generateVersion = () => {
+    const date = new Date();
+    const system = getSystemInfo();
+    const kernel = execSync('uname -r').toString().trim();
+    return `${system['ID']} ${system['VERSION']}-${kernel}@${date.getFullYear()}.${date.getMonth()}.${date.getDate()}`;
+};
 const readState = async () => {
-    let state = { on: false, brightness: 100 };
+    let state = {
+        on: false,
+        brightness: 100,
+        version: generateVersion(),
+        latestVersion: generateVersion()
+    };
     try {
         let fd = await open('./state.json');
         state = JSON.parse(await fd.readFile({ encoding: 'utf-8' }));
@@ -198,69 +225,134 @@ const readState = async () => {
 const writeState = async (state) => {
     await writeFile('./state.json', JSON.stringify(state));
 };
+const upgrade = () => new Promise((resolve, reject) => {
+    const child = exec('sudo apt upgrade -y');
+    child.stdout?.on('data', (data) => {
+        console.log(data);
+        if (data.includes('apt list --upgradable')) {
+            resolve();
+            // child.stdin?.write('Y\n')
+        }
+    });
+    child.stderr?.on('data', console.error);
+});
+const update$1 = () => new Promise((resolve, reject) => {
+    const child = exec('sudo apt update -y');
+    child.stdout?.on('data', async (data) => {
+        console.log(data);
+        if (data.includes('apt list --upgradable')) {
+            resolve();
+            // child.stdin?.write('Y\n')
+        }
+        else if (data.includes('All packages are up to date')) {
+            resolve();
+        }
+    });
+    child.stderr?.on('data', console.error);
+});
+const checkForUpdates = async () => {
+    await update$1();
+    const updates = execSync('apt list --upgradable')
+        .toString()
+        .split('\n')
+        .filter((line) => line.includes('/'));
+    const list = {};
+    for (const update of updates) {
+        const [packageName, version] = update.split('/');
+        list[packageName] = version.split(' ')[0];
+    }
+    return list;
+};
 
 dotenv.config();
 const state = await readState();
 const device = new RRDADevice();
 const client = mqtt.connect(env.MQTTBROKER ?? 'mqtt://test.mosquitto.org', {
-    clientId: DEVICE_INFO.unique_id,
     username: env.USERNAME,
     password: env.PASSWORD
 });
+const publishAvailability = (state) => {
+    for (const topic of [UPDATE_INFO.availability_topic, DEVICE_INFO.availability_topic])
+        client.publish(topic, state);
+};
+const publishConfig = () => {
+    for (const config of [UPDATE_INFO, DEVICE_INFO])
+        client.publish(config.config_topic, JSON.stringify(config));
+};
+const publishState = () => {
+    client.publish(DEVICE_INFO.brightness_state_topic, state.brightness.toString());
+    client.publish(DEVICE_INFO.state_topic, state.on ? ON : OFF);
+};
+const update = async () => {
+    await upgrade();
+    state.version = state.latestVersion;
+    writeState(state);
+    client.publish(UPDATE_INFO.state_topic, state.version);
+    client.publish(UPDATE_INFO.latest_version_topic, state.latestVersion);
+};
 client.on('connect', () => {
     client.subscribe('homeassistant/status', (err) => {
-        client.publish(CONFIG_TOPIC, JSON.stringify(DEVICE_INFO));
-        client.publish(AVAILABILITY_TOPIC, 'online');
-        client.publish(BRIGHTNESS_STATE_TOPIC, state.brightness.toString());
-        if (state.on) {
-            client.publish(STATE_TOPIC, ON);
-        }
-        else {
-            client.publish(STATE_TOPIC, OFF);
-        }
+        publishConfig();
+        publishAvailability('online');
+        publishState();
     });
-    client.subscribe(COMMAND_TOPIC);
-    client.subscribe(BRIGHTNESS_COMMAND_TOPIC);
+    client.subscribe(DEVICE_INFO.command_topic);
+    client.subscribe(DEVICE_INFO.brightness_command_topic);
+    client.subscribe(UPDATE_INFO.command_topic);
 });
-client.on('message', (topic, message) => {
+client.on('message', async (topic, message) => {
     const payload = message.toString();
     if (topic === 'homeassistant/status' && message.toString() === 'online') {
-        client.publish(CONFIG_TOPIC, JSON.stringify(DEVICE_INFO));
-        client.publish(AVAILABILITY_TOPIC, 'online');
-        client.publish(BRIGHTNESS_STATE_TOPIC, state.brightness.toString());
-        if (state.on) {
-            client.publish(STATE_TOPIC, ON);
-        }
-        else {
-            client.publish(STATE_TOPIC, OFF);
-        }
+        publishConfig();
+        publishAvailability('online');
+        publishState();
     }
-    else if (topic === COMMAND_TOPIC) {
+    else if (topic === DEVICE_INFO.command_topic) {
         if (payload === ON) {
             state.on = true;
             device.on();
-            client.publish(STATE_TOPIC, ON);
+            client.publish(DEVICE_INFO.state_topic, ON);
         }
         else {
             state.on = false;
             device.off();
-            client.publish(STATE_TOPIC, OFF);
+            client.publish(DEVICE_INFO.state_topic, OFF);
         }
         writeState(state);
     }
-    else if (topic === BRIGHTNESS_COMMAND_TOPIC) {
+    else if (topic === DEVICE_INFO.brightness_command_topic) {
         state.brightness = parseInt(payload);
         device.dim(state.brightness);
-        client.publish(BRIGHTNESS_STATE_TOPIC, payload);
+        client.publish(DEVICE_INFO.brightness_state_topic, payload);
         writeState(state);
+    }
+    else if (topic === UPDATE_INFO.command_topic) {
+        if (payload === 'update') {
+            client.publish(UPDATE_INFO.state_topic, 'updating');
+            await update();
+            // update code here
+            client.publish(UPDATE_INFO.state_topic, state.version);
+        }
     }
 });
 for (const signal of ['SIGINT', 'SIGTERM', 'SIGQUIT']) {
     process.on(signal, () => {
-        client.publish(AVAILABILITY_TOPIC, 'offline');
+        client.publish(DEVICE_INFO.availability_topic, 'offline');
         setTimeout(() => {
             client.end();
             process.exit();
         }, 200);
     });
 }
+const updateJob = async () => {
+    const updates = await checkForUpdates();
+    if (updates) {
+        state.latestVersion = generateVersion();
+        client.publish(UPDATE_INFO.latest_version_topic, state.latestVersion);
+        client.publish(UPDATE_INFO.state_topic, 'updates available');
+    }
+    else
+        client.publish(UPDATE_INFO.state_topic, 'no updates available');
+};
+await updateJob();
+new CronJob('0 0 * * *', updateJob);
