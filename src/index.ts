@@ -14,7 +14,9 @@ const state = await readState()
 
 const device = new RRDADevice()
 
-const client = mqtt.connect(env.MQTTBROKER ?? 'mqtt://test.mosquitto.org', {
+let haStatus: String
+
+let client = mqtt.connect(env.MQTTBROKER ?? 'mqtt://test.mosquitto.org', {
   username: env.USERNAME,
   password: env.PASSWORD
 })
@@ -54,8 +56,19 @@ client.on('connect', () => {
 
 client.on('message', async (topic, message) => {
   const payload = message.toString()
-
-  if (topic === 'homeassistant/status' && message.toString() === 'online') {
+  if (topic === 'homeassistant/status' && payload === 'offline') {
+    haStatus = 'offline'
+    publishAvailability('offline')
+  }
+  if (topic === 'homeassistant/status' && payload === 'online') {
+    if (haStatus === 'offline') {
+      haStatus = 'online'
+      client = mqtt.connect(env.MQTTBROKER ?? 'mqtt://test.mosquitto.org', {
+        username: env.USERNAME,
+        password: env.PASSWORD
+      })
+      return
+    }
     publishConfig()
     publishAvailability('online')
     publishState()
